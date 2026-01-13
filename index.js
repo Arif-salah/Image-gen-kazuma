@@ -236,12 +236,13 @@ async function onComfyDeleteWorkflowClick() {
     } catch (e) { toastr.error(e.message); }
 }
 
-/* --- WORKFLOW STUDIO (Fixed Saving) --- */
+/* --- WORKFLOW STUDIO (Live Capture Fix) --- */
 async function onComfyOpenWorkflowEditorClick() {
     const name = extension_settings[extensionName].currentWorkflowName;
     if (!name) return toastr.warning("No workflow selected");
 
-    let workflowContent = "{}";
+    // 1. Load Data
+    let loadedContent = "{}";
     try {
         const res = await fetch('/api/sd/comfy/workflow', {
             method: 'POST', headers: getRequestHeaders(),
@@ -253,9 +254,12 @@ async function onComfyOpenWorkflowEditorClick() {
             if (typeof rawBody === 'string') {
                 try { jsonObj = JSON.parse(rawBody); } catch(e) {}
             }
-            workflowContent = JSON.stringify(jsonObj, null, 4);
+            loadedContent = JSON.stringify(jsonObj, null, 4);
         }
     } catch (e) { toastr.error("Failed to load file. Starting empty."); }
+
+    // 2. Variable to hold the text in memory (Critical for saving)
+    let currentJsonText = loadedContent;
 
     // --- UI BUILDER ---
     const $container = $(`
@@ -288,78 +292,85 @@ async function onComfyOpenWorkflowEditorClick() {
     const $list = $container.find('.wf-list');
     const $fileInput = $container.find('.wf-file-input');
 
-    $textarea.val(workflowContent);
+    // Initialize UI
+    $textarea.val(currentJsonText);
 
-    // Sidebar Items
+    // Sidebar Generator
     KAZUMA_PLACEHOLDERS.forEach(item => {
         const $itemDiv = $('<div></div>')
             .css({
-                'padding': '8px 6px',
-                'margin-bottom': '6px',
-                'background-color': 'rgba(0,0,0,0.1)',
-                'border-radius': '4px',
-                'font-family': 'monospace',
-                'font-size': '12px',
-                'border': '1px solid transparent',
-                'transition': 'all 0.2s',
-                'cursor': 'text'
+                'padding': '8px 6px', 'margin-bottom': '6px', 'background-color': 'rgba(0,0,0,0.1)',
+                'border-radius': '4px', 'font-family': 'monospace', 'font-size': '12px',
+                'border': '1px solid transparent', 'transition': 'all 0.2s', 'cursor': 'text'
             });
-
         const $keySpan = $('<span></span>').text(item.key).css({'font-weight': 'bold', 'color': 'var(--smart-text-color)'});
         const $descSpan = $('<div></div>').text(item.desc).css({ 'font-size': '11px', 'opacity': '0.7', 'margin-top': '2px', 'font-family': 'sans-serif' });
         $itemDiv.append($keySpan).append($descSpan);
         $list.append($itemDiv);
     });
 
-    // Highlighting Logic
-    const updateHighlights = () => {
-        const txt = $textarea.val();
+    // Highlighting & LIVE UPDATE Logic
+    const updateState = () => {
+        // 1. Capture text into memory variable
+        currentJsonText = $textarea.val();
+
+        // 2. Run Highlighting logic (Visuals)
         $list.children().each(function() {
             const cleanKey = $(this).find('span').first().text().replace(/"/g, '');
-            if (txt.includes(cleanKey)) $(this).css({'border': '1px solid #4caf50', 'background-color': 'rgba(76, 175, 80, 0.1)'});
+            if (currentJsonText.includes(cleanKey)) $(this).css({'border': '1px solid #4caf50', 'background-color': 'rgba(76, 175, 80, 0.1)'});
             else $(this).css({'border': '1px solid transparent', 'background-color': 'rgba(0,0,0,0.1)'});
         });
     };
-    $textarea.on('input', updateHighlights);
-    setTimeout(updateHighlights, 100);
+
+    // Bind Input Listener to update variable immediately
+    $textarea.on('input', updateState);
+    setTimeout(updateState, 100);
 
     // Toolbar Actions
     $container.find('.wf-format').on('click', () => {
-        try { $textarea.val(JSON.stringify(JSON.parse($textarea.val()), null, 4)); toastr.success("Formatted"); } catch(e) { toastr.warning("Invalid JSON"); }
+        try {
+            const formatted = JSON.stringify(JSON.parse($textarea.val()), null, 4);
+            $textarea.val(formatted);
+            updateState(); // Update variable
+            toastr.success("Formatted");
+        } catch(e) { toastr.warning("Invalid JSON"); }
     });
+
     $container.find('.wf-import').on('click', () => $fileInput.click());
     $fileInput.on('change', (e) => {
         if (!e.target.files[0]) return;
-        const r = new FileReader(); r.onload = (ev) => { $textarea.val(ev.target.result); updateHighlights(); toastr.success("Imported"); };
+        const r = new FileReader(); r.onload = (ev) => {
+            $textarea.val(ev.target.result);
+            updateState(); // Update variable
+            toastr.success("Imported");
+        };
         r.readAsText(e.target.files[0]); $fileInput.val('');
     });
+
     $container.find('.wf-export').on('click', () => {
-        try { JSON.parse($textarea.val()); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([$textarea.val()], {type:"application/json"})); a.download = name; a.click(); } catch(e) { toastr.warning("Invalid content"); }
+        try { JSON.parse(currentJsonText); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([currentJsonText], {type:"application/json"})); a.download = name; a.click(); } catch(e) { toastr.warning("Invalid content"); }
     });
 
-    // --- CRITICAL FIX FOR SAVING ---
-    let contentToSave = null; // Variable to temporarily hold the data
-
+    // Validating Closure
     const onClosing = () => {
-        const val = $textarea.val();
         try {
-            JSON.parse(val); // Validate JSON
-            contentToSave = val; // Capture it!
-            return true; // Allow closing
+            JSON.parse(currentJsonText); // Validate the variable, not the UI
+            return true;
         } catch (e) {
-            toastr.error("Invalid JSON code. Fix before saving.");
-            return false; // Prevent closing
+            toastr.error("Invalid JSON. Cannot save.");
+            return false;
         }
     };
 
     const popup = new Popup($container, POPUP_TYPE.CONFIRM, '', { okButton: 'Save Changes', cancelButton: 'Cancel', wide: true, large: true, onClosing: onClosing });
+    const confirmed = await popup.show();
 
-    const confirmed = await popup.show(); // Expecting Boolean (true = OK clicked)
-
-    if (confirmed === true && contentToSave) {
+    // SAVING
+    if (confirmed) {
         try {
-            // Minify for storage
-            const minified = JSON.stringify(JSON.parse(contentToSave));
+            console.log(`[${extensionName}] Saving workflow: ${name}`);
+            // Minify
+            const minified = JSON.stringify(JSON.parse(currentJsonText));
             const res = await fetch('/api/sd/comfy/save-workflow', {
                 method: 'POST', headers: getRequestHeaders(),
                 body: JSON.stringify({ file_name: name, workflow: minified })
@@ -372,6 +383,7 @@ async function onComfyOpenWorkflowEditorClick() {
         }
     }
 }
+
 
 
 // --- FETCH LISTS ---
