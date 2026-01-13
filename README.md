@@ -107,7 +107,7 @@ Under the **Automation** section, you can choose how the extension generates pro
     *   The extension constructs a complex system instruction behind the scenes to ensure the LLM adheres to these constraints.
 
 *   **Strategy: Use Specific Preset** (Legacy)
-    *   Forces SillyTavern to switch to a specific Text Completion preset (e.g., "Stable Diffusion Helper") just for the image prompt generation, then switches back.
+    *   Forces SillyTavern to switch to a specific Chat Completion Presets just for the image prompt generation, then switches back.
 
 ### 2. Auto-Generation
 *   **Enable:** Automatically generates an image after the character replies.
@@ -138,4 +138,5 @@ A: This is intended! The **Context Switcher** feature ensures that settings appr
 ## 📜 License
 
 MIT License. Free to use and modify.
+
 
