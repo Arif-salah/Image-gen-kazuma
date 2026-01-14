@@ -558,7 +558,7 @@ async function generateWithComfy(positivePrompt, target = null) {
 
     try {
         toastr.info("Sending to ComfyUI...", "Image Gen Kazuma");
-        const res = await fetch(`${url}/prompt`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: workflow }) });
+        const res = await fetch(`${url}/prompt`, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, mode: "cors", credentials: "include", redirect: "manual", body: JSON.stringify({ prompt: workflow }) });
         if(!res.ok) throw new Error("Failed");
         const data = await res.json();
         await waitForGeneration(url, data.prompt_id, positivePrompt, target);
