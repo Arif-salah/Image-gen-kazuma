@@ -85,12 +85,37 @@ const defaultSettings = {
     denoise: 0.5,
     clipSkip: 1,
     profileStrategy: "current",
-    promptStyle: "standard",      
-    promptPerspective: "scene",   
-    promptExtra: "",              
+    promptStyle: "standard",
+    promptPerspective: "scene",
+    promptExtra: "",
     connectionProfile: "",
-    savedWorkflowStates: {}  
+    savedWorkflowStates: {}
 };
+
+// helperfunction to return fetch options
+function getFetchOptions(url, baseOptions = {}) {
+    // checking if url is valid
+    if (!url || typeof url !== 'string') {
+        return baseOptions;
+    }
+
+    // normalize URL (trim whitespace) and check protocol case-insensitive
+    const normalizedUrl = url.trim();
+    const isHttps = normalizedUrl.toLowerCase().startsWith('https://');
+
+    // in case of https, return fetch options containing cors/credentials/redirect
+    // options which are useful for cross-origin requests and silly tavern and comfyui
+    // behind a reverse proxy, probably secured by forward authentication (authelia, etc...)
+    if (isHttps) {
+        return {
+            ...baseOptions,
+            mode: "cors",
+            credentials: "include",
+            redirect: "follow"
+        };
+    }
+    return baseOptions;
+}
 
 async function loadSettings() {
     if (!extension_settings[extensionName]) extension_settings[extensionName] = {};
@@ -107,7 +132,7 @@ async function loadSettings() {
     $("#kazuma_height").val(extension_settings[extensionName].imgHeight);
     $("#kazuma_auto_enable").prop("checked", extension_settings[extensionName].autoGenEnabled);
     $("#kazuma_auto_freq").val(extension_settings[extensionName].autoGenFreq);
-	
+
     $("#kazuma_prompt_style").val(extension_settings[extensionName].promptStyle || "standard");
     $("#kazuma_prompt_persp").val(extension_settings[extensionName].promptPerspective || "scene");
     $("#kazuma_prompt_extra").val(extension_settings[extensionName].promptExtra || "");
@@ -124,7 +149,7 @@ async function loadSettings() {
     $("#kazuma_negative").val(extension_settings[extensionName].customNegative);
     $("#kazuma_seed").val(extension_settings[extensionName].customSeed);
     $("#kazuma_compress").prop("checked", extension_settings[extensionName].compressImages);
-	
+
 	$("#kazuma_profile_strategy").val(extension_settings[extensionName].profileStrategy || "current");
 toggleProfileVisibility();
 
@@ -414,7 +439,7 @@ async function fetchComfyLists() {
             if (extension_settings[extensionName].selectedSampler) samplerSel.val(extension_settings[extensionName].selectedSampler);
         }
 
-        const loraRes = await fetch(`${comfyUrl}/object_info/LoraLoader`);
+        const loraRes = await fetch(`${comfyUrl}/object_info/LoraLoader`, getFetchOptions(comfyUrl, { headers: { "Accept": "application/json" }}));
         if (loraRes.ok) {
             const json = await loraRes.json();
             const files = json['LoraLoader'].input.required.lora_name[0];
@@ -558,7 +583,7 @@ async function generateWithComfy(positivePrompt, target = null) {
 
     try {
         toastr.info("Sending to ComfyUI...", "Image Gen Kazuma");
-        const res = await fetch(`${url}/prompt`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: workflow }) });
+        const res = await fetch(`${url}/prompt`, getFetchOptions(url, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ prompt: workflow }) }));
         if(!res.ok) throw new Error("Failed");
         const data = await res.json();
         await waitForGeneration(url, data.prompt_id, positivePrompt, target);
@@ -635,7 +660,7 @@ async function waitForGeneration(baseUrl, promptId, positivePrompt, target) {
 
      const checkInterval = setInterval(async () => {
         try {
-            const h = await (await fetch(`${baseUrl}/history/${promptId}`)).json();
+            const h = await (await fetch(`${baseUrl}/history/${promptId}`, getFetchOptions(baseUrl))).json();
             if (h[promptId]) {
                 clearInterval(checkInterval);
                 const outputs = h[promptId].outputs;
@@ -686,7 +711,7 @@ function compressImage(base64Str, quality = 0.9) {
 async function insertImageToChat(imgUrl, promptText, target = null) {
     try {
         toastr.info("Downloading image...", "Image Gen Kazuma");
-        const response = await fetch(imgUrl);
+        const response = await fetch(imgUrl, getFetchOptions(imgUrl));
         const blob = await response.blob();
         let base64FullURL = await blobToBase64(blob);
 
@@ -724,7 +749,7 @@ async function insertImageToChat(imgUrl, promptText, target = null) {
             target.message.extra.media.push(mediaAttachment);
             target.message.extra.media_index = target.message.extra.media.length - 1;
             if (typeof appendMediaToMessage === "function") appendMediaToMessage(target.message, target.element);
-            await saveChat();
+            await context.saveChat();
             toastr.success("Gallery updated!");
         } else {
             const newMessage = {
@@ -732,7 +757,7 @@ async function insertImageToChat(imgUrl, promptText, target = null) {
                 mes: "", extra: { media: [mediaAttachment], media_display: "gallery", media_index: 0, inline_image: false }, force_avatar: "img/five.png"
             };
             context.chat.push(newMessage);
-            await saveChat();
+            await context.saveChat();
             if (typeof addOneMessage === "function") addOneMessage(newMessage);
             else await reloadCurrentChat();
             toastr.success("Image inserted!");
