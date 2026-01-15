@@ -711,7 +711,7 @@ function compressImage(base64Str, quality = 0.9) {
 async function insertImageToChat(imgUrl, promptText, target = null) {
     try {
         toastr.info("Downloading image...", "Image Gen Kazuma");
-        const response = await fetch(imgUrl);
+        const response = await fetch(imgUrl, getFetchOptions(imgUrl));
         const blob = await response.blob();
         let base64FullURL = await blobToBase64(blob);
 
