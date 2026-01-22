@@ -1,6 +1,7 @@
 <div class="inline-drawer">
     <div class="inline-drawer-toggle inline-drawer-header">
         <b>Image Gen Kazuma</b>
+        <div id="kazuma_popout_toggle" class="fa-regular fa-window-restore" title="Toggle Pop-out Window"></div>
         <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
 
@@ -23,6 +24,27 @@
                 <label class="kazuma-row" title="Show prompt popup for editing before generation">
                     <span><i class="fa-solid fa-bug"></i> Diagnostic Mode</span>
                     <input type="checkbox" id="kazuma_debug" />
+                </label>
+            </div>
+
+            <!-- Group: Pop-out Window Settings -->
+            <div class="kazuma-group">
+                <div class="kazuma-header"><i class="fa-regular fa-window-restore"></i> Pop-out Window</div>
+                <label class="kazuma-row" title="Display images in a floating pop-out window">
+                    <span>Use Pop-out Window</span>
+                    <input type="checkbox" id="kazuma_use_popout" />
+                </label>
+                <label class="kazuma-row" title="Automatically open pop-out when image is ready">
+                    <span>Auto-open Pop-out</span>
+                    <input type="checkbox" id="kazuma_auto_open_popout" />
+                </label>
+                <label class="kazuma-row" title="Show the prompt text below the image">
+                    <span>Show Prompt in Pop-out</span>
+                    <input type="checkbox" id="kazuma_show_prompt_popout" />
+                </label>
+                <label class="kazuma-row" title="Also save images to chat when using pop-out">
+                    <span>Also Save to Chat</span>
+                    <input type="checkbox" id="kazuma_also_save_chat" />
                 </label>
             </div>
 

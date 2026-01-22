@@ -87,8 +87,401 @@ const defaultSettings = {
     tagApiEndpoint: "",
     tagApiKey: "",
     tagModel: "",
-    savedWorkflowStates: {}
+    savedWorkflowStates: {},
+    // Pop-out Settings
+    usePopout: true,
+    autoOpenPopout: true,
+    showPromptInPopout: true,
+    alsoSaveToChat: false
 };
+
+// --- POPOUT STATE VARIABLES ---
+let KAZUMA_POPOUT_VISIBLE = false;
+let KAZUMA_POPOUT_LOCKED = false;
+let $KAZUMA_POPOUT = null;
+let currentPopoutImageData = { url: '', prompt: '', base64: '' };
+
+// --- POPOUT FUNCTIONS ---
+
+function injectPopoutHTML() {
+    if ($("#kazuma_popout").length > 0) return;
+
+    const popoutHTML = `
+        <div id="kazuma_popout" class="draggable">
+            <div class="panelControlBar" id="kazumaPopoutHeader">
+                <div class="title"><i class="fa-solid fa-paintbrush"></i> Kazuma Image</div>
+                <div class="header-controls">
+                    <div class="fa-solid fa-arrows-left-right dragReset" title="Reset Size"></div>
+                    <div class="fa-solid fa-lock-open dragLock" title="Lock Position"></div>
+                    <div id="kazuma_popout_close" class="fa-solid fa-xmark" title="Close"></div>
+                </div>
+            </div>
+            <div id="kazuma_popout_content">
+                <div id="kazuma_popout_image_container">
+                    <img id="kazuma_popout_image" />
+                    <div id="kazuma_popout_empty_state">
+                        <i class="fa-solid fa-image"></i>
+                        <div>No image generated yet</div>
+                        <small>Generate an image to see it here</small>
+                    </div>
+                    <div id="kazuma_popout_loading">
+                        <div class="spinner"></div>
+                        <span>Generating...</span>
+                    </div>
+                </div>
+                <div id="kazuma_popout_prompt"></div>
+                <div id="kazuma_popout_actions">
+                    <button id="kazuma_popout_regenerate" title="Regenerate with same prompt">
+                        <i class="fa-solid fa-rotate"></i> Regenerate
+                    </button>
+                    <button id="kazuma_popout_save" title="Save image to chat">
+                        <i class="fa-solid fa-comment"></i> To Chat
+                    </button>
+                    <button id="kazuma_popout_download" title="Download image">
+                        <i class="fa-solid fa-download"></i> Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    $("body").append(popoutHTML);
+    $KAZUMA_POPOUT = $("#kazuma_popout");
+
+    // Load saved position
+    loadKazumaPopoutPosition();
+
+    // Make it draggable
+    makeKazumaPopoutDraggable($KAZUMA_POPOUT);
+
+    // Bind popout-specific events
+    bindPopoutEvents();
+}
+
+function bindPopoutEvents() {
+    // Close button
+    $("#kazuma_popout_close").on("click", closeKazumaPopout);
+
+    // Lock button
+    $("#kazumaPopoutHeader .dragLock").on("click", toggleKazumaPopoutLock);
+
+    // Reset size button
+    $("#kazumaPopoutHeader .dragReset").on("click", resetKazumaPopoutSize);
+
+    // Action buttons
+    $("#kazuma_popout_regenerate").on("click", onPopoutRegenerate);
+    $("#kazuma_popout_save").on("click", onPopoutSaveToChat);
+    $("#kazuma_popout_download").on("click", onPopoutDownload);
+
+    // Save position on resize
+    $KAZUMA_POPOUT.on("mouseup", saveKazumaPopoutPosition);
+}
+
+function openKazumaPopout() {
+    if (!$KAZUMA_POPOUT) injectPopoutHTML();
+    $KAZUMA_POPOUT.addClass("kazuma-popout-visible");
+    KAZUMA_POPOUT_VISIBLE = true;
+    $("#kazuma_popout_toggle").addClass("active");
+}
+
+function closeKazumaPopout() {
+    if ($KAZUMA_POPOUT) {
+        $KAZUMA_POPOUT.removeClass("kazuma-popout-visible");
+    }
+    KAZUMA_POPOUT_VISIBLE = false;
+    $("#kazuma_popout_toggle").removeClass("active");
+}
+
+function toggleKazumaPopout() {
+    if (KAZUMA_POPOUT_VISIBLE) {
+        closeKazumaPopout();
+    } else {
+        openKazumaPopout();
+    }
+}
+
+function makeKazumaPopoutDraggable($element) {
+    const $header = $element.find("#kazumaPopoutHeader");
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    $header.on("mousedown", function(e) {
+        if (KAZUMA_POPOUT_LOCKED) return;
+        if ($(e.target).hasClass("dragLock") || $(e.target).hasClass("dragReset") || $(e.target).attr("id") === "kazuma_popout_close") return;
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = $element[0].getBoundingClientRect();
+        startLeft = rect.left;
+        startTop = rect.top;
+
+        $header.css("cursor", "grabbing");
+        e.preventDefault();
+    });
+
+    $(document).on("mousemove", function(e) {
+        if (!isDragging) return;
+
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+
+        let newLeft = startLeft + deltaX;
+        let newTop = startTop + deltaY;
+
+        // Viewport constraints
+        const maxLeft = window.innerWidth - $element.outerWidth();
+        const maxTop = window.innerHeight - $element.outerHeight();
+
+        newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+        newTop = Math.max(0, Math.min(newTop, maxTop));
+
+        $element.css({
+            left: newLeft + "px",
+            top: newTop + "px",
+            right: "auto"
+        });
+    });
+
+    $(document).on("mouseup", function() {
+        if (isDragging) {
+            isDragging = false;
+            $header.css("cursor", "grab");
+            saveKazumaPopoutPosition();
+        }
+    });
+}
+
+function saveKazumaPopoutPosition() {
+    if (!$KAZUMA_POPOUT) return;
+
+    const rect = $KAZUMA_POPOUT[0].getBoundingClientRect();
+    const pos = {
+        left: rect.left,
+        top: rect.top,
+        width: $KAZUMA_POPOUT.outerWidth(),
+        height: $KAZUMA_POPOUT.outerHeight(),
+        locked: KAZUMA_POPOUT_LOCKED
+    };
+
+    localStorage.setItem("kazuma_popout_position", JSON.stringify(pos));
+}
+
+function loadKazumaPopoutPosition() {
+    if (!$KAZUMA_POPOUT) return;
+
+    const saved = localStorage.getItem("kazuma_popout_position");
+    if (saved) {
+        try {
+            const pos = JSON.parse(saved);
+
+            // Validate position is within viewport
+            const maxLeft = window.innerWidth - 100;
+            const maxTop = window.innerHeight - 100;
+
+            const left = Math.max(0, Math.min(pos.left || 50, maxLeft));
+            const top = Math.max(0, Math.min(pos.top || 100, maxTop));
+
+            $KAZUMA_POPOUT.css({
+                left: left + "px",
+                top: top + "px",
+                right: "auto",
+                width: pos.width ? pos.width + "px" : "400px",
+                height: pos.height ? pos.height + "px" : "auto"
+            });
+
+            if (pos.locked) {
+                KAZUMA_POPOUT_LOCKED = true;
+                updateKazumaLockButtonUI();
+            }
+        } catch (e) {
+            console.warn(`[${extensionName}] Failed to load popout position`);
+        }
+    }
+}
+
+function toggleKazumaPopoutLock() {
+    KAZUMA_POPOUT_LOCKED = !KAZUMA_POPOUT_LOCKED;
+    updateKazumaLockButtonUI();
+    saveKazumaPopoutPosition();
+}
+
+function updateKazumaLockButtonUI() {
+    const $lockBtn = $("#kazumaPopoutHeader .dragLock");
+    const $header = $("#kazumaPopoutHeader");
+
+    if (KAZUMA_POPOUT_LOCKED) {
+        $lockBtn.removeClass("fa-lock-open").addClass("fa-lock locked");
+        $header.addClass("kazuma-locked");
+    } else {
+        $lockBtn.removeClass("fa-lock locked").addClass("fa-lock-open");
+        $header.removeClass("kazuma-locked");
+    }
+}
+
+function resetKazumaPopoutSize() {
+    if (!$KAZUMA_POPOUT) return;
+
+    $KAZUMA_POPOUT.css({
+        width: "400px",
+        height: "auto"
+    });
+
+    saveKazumaPopoutPosition();
+    toastr.success("Pop-out size reset");
+}
+
+// --- POPOUT IMAGE HANDLING ---
+
+function updatePopoutImage(imageUrl, promptText, base64Data = '') {
+    if (!$KAZUMA_POPOUT) injectPopoutHTML();
+
+    const $img = $("#kazuma_popout_image");
+    const $empty = $("#kazuma_popout_empty_state");
+    const $prompt = $("#kazuma_popout_prompt");
+    const $actions = $("#kazuma_popout_actions button");
+
+    // Store current image data
+    currentPopoutImageData = {
+        url: imageUrl,
+        prompt: promptText,
+        base64: base64Data
+    };
+
+    // Update image
+    $img.attr("src", imageUrl).addClass("has-image");
+    $empty.addClass("hidden");
+
+    // Update prompt display
+    const s = extension_settings[extensionName];
+    if (s.showPromptInPopout && promptText) {
+        $prompt.text(promptText).addClass("visible");
+    } else {
+        $prompt.removeClass("visible");
+    }
+
+    // Enable action buttons
+    $actions.prop("disabled", false);
+
+    // Hide loading
+    hidePopoutLoading();
+}
+
+function showPopoutLoading(text = "Generating...") {
+    if (!$KAZUMA_POPOUT) injectPopoutHTML();
+
+    const $loading = $("#kazuma_popout_loading");
+    $loading.find("span").text(text);
+    $loading.addClass("visible");
+
+    // Disable action buttons while loading
+    $("#kazuma_popout_actions button").prop("disabled", true);
+}
+
+function hidePopoutLoading() {
+    $("#kazuma_popout_loading").removeClass("visible");
+}
+
+// --- POPOUT ACTION HANDLERS ---
+
+async function onPopoutRegenerate() {
+    if (!currentPopoutImageData.prompt) {
+        toastr.warning("No prompt available to regenerate");
+        return;
+    }
+
+    toastr.info("Regenerating image...", "Image Gen Kazuma");
+    showPopoutLoading("Regenerating...");
+    showKazumaProgress("Regenerating Image...");
+
+    try {
+        await generateWithComfy(currentPopoutImageData.prompt, null);
+    } catch (err) {
+        hidePopoutLoading();
+        hideKazumaProgress();
+        toastr.error(`Regeneration failed: ${err.message}`);
+    }
+}
+
+async function onPopoutSaveToChat() {
+    if (!currentPopoutImageData.url) {
+        toastr.warning("No image to save");
+        return;
+    }
+
+    try {
+        toastr.info("Saving to chat...", "Image Gen Kazuma");
+
+        // Use the stored base64 if available, otherwise fetch from URL
+        let base64FullURL = currentPopoutImageData.base64;
+        if (!base64FullURL) {
+            const response = await fetch(currentPopoutImageData.url);
+            const blob = await response.blob();
+            base64FullURL = await blobToBase64(blob);
+        }
+
+        let format = "png";
+        if (extension_settings[extensionName].compressImages) {
+            base64FullURL = await compressImage(base64FullURL, 0.9);
+            format = "jpeg";
+        }
+
+        const base64Raw = base64FullURL.split(',')[1];
+        const context = getContext();
+        let characterName = "User";
+        if (context.groupId) {
+            characterName = context.groups.find(x => x.id === context.groupId)?.id;
+        } else if (context.characterId) {
+            characterName = context.characters[context.characterId]?.name;
+        }
+        if (!characterName) characterName = "User";
+
+        const filename = `${characterName}_${humanizedDateTime()}`;
+        const savedPath = await saveBase64AsFile(base64Raw, characterName, filename, format);
+
+        const mediaAttachment = {
+            url: savedPath,
+            type: "image",
+            source: "generated",
+            title: currentPopoutImageData.prompt,
+            generation_type: "free",
+        };
+
+        const newMessage = {
+            name: "Image Gen Kazuma", is_user: false, is_system: true, send_date: Date.now(),
+            mes: "", extra: { media: [mediaAttachment], media_display: "gallery", media_index: 0, inline_image: false }, force_avatar: "img/five.png"
+        };
+        context.chat.push(newMessage);
+        await saveChat();
+        if (typeof addOneMessage === "function") addOneMessage(newMessage);
+        else await reloadCurrentChat();
+
+        toastr.success("Image saved to chat!");
+    } catch (err) {
+        console.error(err);
+        toastr.error("Failed to save to chat");
+    }
+}
+
+function onPopoutDownload() {
+    if (!currentPopoutImageData.url) {
+        toastr.warning("No image to download");
+        return;
+    }
+
+    try {
+        const link = document.createElement("a");
+        link.href = currentPopoutImageData.url;
+        link.download = `kazuma_${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toastr.success("Download started");
+    } catch (err) {
+        console.error(err);
+        toastr.error("Download failed");
+    }
+}
 
 async function loadSettings() {
     if (!extension_settings[extensionName]) extension_settings[extensionName] = {};
@@ -110,6 +503,12 @@ async function loadSettings() {
     $("#kazuma_tag_endpoint").val(extension_settings[extensionName].tagApiEndpoint || "");
     $("#kazuma_tag_api_key").val(extension_settings[extensionName].tagApiKey || "");
     $("#kazuma_tag_model").val(extension_settings[extensionName].tagModel || "");
+
+    // Pop-out Settings
+    $("#kazuma_use_popout").prop("checked", extension_settings[extensionName].usePopout);
+    $("#kazuma_auto_open_popout").prop("checked", extension_settings[extensionName].autoOpenPopout);
+    $("#kazuma_show_prompt_popout").prop("checked", extension_settings[extensionName].showPromptInPopout);
+    $("#kazuma_also_save_chat").prop("checked", extension_settings[extensionName].alsoSaveToChat);
 
     $("#kazuma_lora_wt").val(extension_settings[extensionName].selectedLoraWt);
     $("#kazuma_lora_wt_display").text(extension_settings[extensionName].selectedLoraWt);
@@ -806,6 +1205,15 @@ async function waitForGeneration(baseUrl, promptId, positivePrompt, target) {
      // [UPDATE TEXT]
      showKazumaProgress("Rendering Image...");
 
+     // Show popout loading if using popout
+     const s = extension_settings[extensionName];
+     if (s.usePopout && !target) {
+         showPopoutLoading("Rendering...");
+         if (s.autoOpenPopout && !KAZUMA_POPOUT_VISIBLE) {
+             openKazumaPopout();
+         }
+     }
+
      const checkInterval = setInterval(async () => {
         try {
             const h = await (await fetch(`${baseUrl}/history/${promptId}`)).json();
@@ -829,8 +1237,10 @@ async function waitForGeneration(baseUrl, promptId, positivePrompt, target) {
 
                     // [HIDE WHEN DONE]
                     hideKazumaProgress();
+                    hidePopoutLoading();
                 } else {
                     hideKazumaProgress();
+                    hidePopoutLoading();
                 }
             }
         } catch (e) { }
@@ -867,6 +1277,25 @@ async function insertImageToChat(imgUrl, promptText, target = null) {
         if (extension_settings[extensionName].compressImages) {
             base64FullURL = await compressImage(base64FullURL, 0.9);
             format = "jpeg";
+        }
+
+        // --- POPOUT ROUTING ---
+        const s = extension_settings[extensionName];
+        if (s.usePopout && !target) {
+            // Update popout with the image
+            updatePopoutImage(base64FullURL, promptText, base64FullURL);
+
+            // Auto-open popout if enabled
+            if (s.autoOpenPopout && !KAZUMA_POPOUT_VISIBLE) {
+                openKazumaPopout();
+            }
+
+            // If not also saving to chat, we're done
+            if (!s.alsoSaveToChat) {
+                toastr.success("Image ready in pop-out!");
+                return;
+            }
+            // Otherwise continue to save to chat as well
         }
 
         const base64Raw = base64FullURL.split(',')[1];
@@ -944,6 +1373,16 @@ jQuery(async () => {
         $("#kazuma_tag_endpoint").on("input", (e) => { extension_settings[extensionName].tagApiEndpoint = $(e.target).val(); saveSettingsDebounced(); });
         $("#kazuma_tag_api_key").on("input", (e) => { extension_settings[extensionName].tagApiKey = $(e.target).val(); saveSettingsDebounced(); });
         $("#kazuma_tag_model").on("input", (e) => { extension_settings[extensionName].tagModel = $(e.target).val(); saveSettingsDebounced(); });
+
+        // Pop-out settings event handlers
+        $("#kazuma_popout_toggle").on("click", (e) => { e.stopPropagation(); toggleKazumaPopout(); });
+        $("#kazuma_use_popout").on("change", (e) => { extension_settings[extensionName].usePopout = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_auto_open_popout").on("change", (e) => { extension_settings[extensionName].autoOpenPopout = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_show_prompt_popout").on("change", (e) => { extension_settings[extensionName].showPromptInPopout = $(e.target).prop("checked"); saveSettingsDebounced(); });
+        $("#kazuma_also_save_chat").on("change", (e) => { extension_settings[extensionName].alsoSaveToChat = $(e.target).prop("checked"); saveSettingsDebounced(); });
+
+        // Inject popout HTML structure
+        injectPopoutHTML();
 
         // SMART WORKFLOW SWITCHER
         $("#kazuma_workflow_list").on("change", (e) => {

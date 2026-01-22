@@ -148,3 +148,276 @@
     0% { background-position: 0 0; }
     100% { background-position: 20px 0; }
 }
+
+/* ====================== */
+/* KAZUMA POPOUT WINDOW   */
+/* ====================== */
+
+#kazuma_popout {
+    position: fixed;
+    top: 100px;
+    right: 50px;
+    width: 400px;
+    min-width: 280px;
+    min-height: 300px;
+    max-width: 90vw;
+    max-height: 90vh;
+    background: var(--smart-background-color);
+    border: 1px solid var(--smart-border-color);
+    border-radius: 8px;
+    z-index: 10001;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    resize: both;
+}
+
+#kazuma_popout.kazuma-popout-visible {
+    display: flex;
+}
+
+/* Popout Header / Control Bar */
+#kazumaPopoutHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--smart-border-color);
+    cursor: grab;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+#kazumaPopoutHeader:active {
+    cursor: grabbing;
+}
+
+#kazumaPopoutHeader.kazuma-locked {
+    cursor: default;
+}
+
+#kazumaPopoutHeader .title {
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--smart-text-color);
+}
+
+#kazumaPopoutHeader .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#kazumaPopoutHeader .header-controls > div {
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+#kazumaPopoutHeader .header-controls > div:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#kazumaPopoutHeader .dragLock.locked {
+    color: var(--smart-theme-color);
+    opacity: 1;
+}
+
+/* Popout Content Area */
+#kazuma_popout_content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 10px;
+    min-height: 0;
+}
+
+/* Image Container */
+#kazuma_popout_image_container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+    min-height: 150px;
+}
+
+#kazuma_popout_image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: none;
+}
+
+#kazuma_popout_image.has-image {
+    display: block;
+}
+
+/* Empty State */
+#kazuma_popout_empty_state {
+    text-align: center;
+    padding: 30px;
+    opacity: 0.5;
+}
+
+#kazuma_popout_empty_state i {
+    font-size: 48px;
+    margin-bottom: 15px;
+    display: block;
+}
+
+#kazuma_popout_empty_state.hidden {
+    display: none;
+}
+
+/* Loading Spinner */
+#kazuma_popout_loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+#kazuma_popout_loading.visible {
+    display: flex;
+}
+
+#kazuma_popout_loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--smart-theme-color);
+    border-radius: 50%;
+    animation: kazuma-spin 1s linear infinite;
+}
+
+@keyframes kazuma-spin {
+    to { transform: rotate(360deg); }
+}
+
+#kazuma_popout_loading span {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+/* Prompt Display */
+#kazuma_popout_prompt {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    max-height: 80px;
+    overflow-y: auto;
+    word-break: break-word;
+    display: none;
+}
+
+#kazuma_popout_prompt.visible {
+    display: block;
+}
+
+/* Action Buttons */
+#kazuma_popout_actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+#kazuma_popout_actions button {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--smart-border-color);
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--smart-text-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+#kazuma_popout_actions button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--smart-theme-color);
+}
+
+#kazuma_popout_actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Close Button */
+#kazuma_popout_close {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+#kazuma_popout_close:hover {
+    opacity: 1;
+    background: rgba(255, 0, 0, 0.2);
+}
+
+/* Popout Toggle Button in Extension Header */
+#kazuma_popout_toggle {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: all 0.2s;
+    margin-left: auto;
+    margin-right: 10px;
+}
+
+#kazuma_popout_toggle:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#kazuma_popout_toggle.active {
+    color: var(--smart-theme-color);
+    opacity: 1;
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+    #kazuma_popout {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-width: none;
+    }
+
+    #kazuma_popout_actions {
+        flex-wrap: wrap;
+    }
+
+    #kazuma_popout_actions button {
+        flex: 1 1 45%;
+    }
+}
