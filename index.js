@@ -430,27 +430,40 @@ const TAG_GEN_CONFIG = {
     frequency_penalty: 0,
     presence_penalty: 1.5,
     max_tokens: 1000,
-    systemPrompt: `You are a Danbooru/Booru tag generator for AI image generation. Your task is to output ONLY comma-separated booru tags based on the scene described in the chat.
+    systemPrompt: `You are a Danbooru tag generator. Output ONLY comma-separated booru tags for image generation.
 
-RULES:
-1. ALWAYS start with: {{char}}
-2. Keep tags MINIMAL (8-15 tags maximum)
-3. Focus ONLY on:
-   - Background/setting (e.g., beach, bedroom, forest, city)
-   - Emotion/expression (e.g., smile, blush, surprised, angry)
-   - Clothing ONLY if different from character's default (e.g., swimsuit, pajamas, formal_dress)
-   - Pose if clearly described (e.g., sitting, standing, lying_down)
-   - Time of day if relevant (e.g., night, sunset)
-4. DO NOT include:
-   - Character appearance tags (hair color, eye color, body features) - the LoRA handles this
-   - Quality tags (masterpiece, best quality) - added separately
-   - Artist tags
-5. Use underscores for multi-word tags (e.g., long_hair, blue_sky)
-6. Output ONLY the tags, nothing else. No explanations, no formatting.
+ALLOWED TAGS (use these categories ONLY):
+- Character name: {{char}}
+- Pose: sitting, standing, lying_down, kneeling, walking, running, leaning_forward, arms_crossed, hand_on_hip
+- Expression: smile, soft_smile, grin, blush, angry, sad, surprised, crying, laughing, smirk, frown, open_mouth, closed_eyes
+- Setting/Background: indoors, outdoors, bedroom, kitchen, beach, forest, city, street, office, classroom, night, sunset, sunrise
+- Clothing (ONLY if different from default): swimsuit, bikini, dress, pajamas, towel, nude, underwear, formal_wear, casual_clothes
+- Camera/Composition: close-up, portrait, full_body, from_above, from_below, from_side
 
-Example output:
-{{char}}, beach, swimsuit, bikini, smile, standing, blue_sky, ocean, sunny`,
-    jailbreakPrompt: "Based on the latest message in the chat history, generate booru tags for the current scene. Output ONLY the comma-separated tags, starting with {{char}}.",
+STRICTLY FORBIDDEN - Never output these:
+- Physical appearance (hair_color, eye_color, body type, skin tone) - LoRA handles this
+- Abstract concepts (love, connection, affection, intimate, creative, simulation)
+- Emotions as concepts (feeling_happy, warmth, comfort) - use facial expressions instead
+- Made-up tags (warm_hum, digital_glow) - only use real booru tags
+- Quality tags (masterpiece, best_quality, highres)
+- Artist names
+
+FORMAT: Output 8-12 tags, comma-separated, using underscores for multi-word tags. Nothing else.
+
+EXAMPLES:
+
+Input: *She sits on the bed, blushing and looking away shyly*
+Output: {{char}}, sitting, bed, bedroom, blush, looking_away, shy
+
+Input: *Standing at the beach in her bikini, she waves at you with a bright smile*
+Output: {{char}}, standing, beach, bikini, waving, smile, sunny, ocean, outdoors
+
+Input: *She's in the kitchen cooking, wearing an apron, focused on the stove*
+Output: {{char}}, standing, kitchen, apron, cooking, indoors, focused, stove
+
+Input: *Lying on the grass at sunset, gazing at the clouds peacefully*
+Output: {{char}}, lying_down, grass, sunset, outdoors, sky, peaceful, from_side`,
+    jailbreakPrompt: "Generate booru tags for the scene above. Output ONLY the comma-separated tags. No explanations. No abstract concepts. Only visual elements.",
     assistantPrefill: "{{char}}, "
 };
 
