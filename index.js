@@ -536,7 +536,12 @@ const TAG_ALIASES = {
     'nurse_outfit': 'nurse', 'nurse_uniform': 'nurse',
     'naked': 'nude',
     // Misc
-    'raining': 'rain', 'settee': 'couch'
+    'raining': 'rain', 'settee': 'couch',
+    // Common model outputs
+    'city_skyline': 'cityscape', 'glass_wall': 'window',
+    'relaxed_posture': 'relaxed', 'attentive': 'looking_at_viewer',
+    'evening_skyline': 'cityscape', 'simulated_environment': 'indoors',
+    'holographic_displays': 'holographic_interface', 'holographic_display': 'holographic_interface'
 };
 
 // Patterns that should always be filtered out
@@ -556,16 +561,14 @@ function cleanTags(rawTags, charName) {
         .split(',')
         .map(t => t.trim().toLowerCase().replace(/\s+/g, '_'))
         .filter(t => t.length > 1)
-        // Filter out bad patterns first
+        // Filter out bad patterns
         .filter(t => !BAD_TAG_PATTERNS.some(pattern => pattern.test(t)))
         // Apply alias corrections
         .map(t => TAG_ALIASES[t] || t)
-        // Only keep valid booru tags
-        .filter(t => VALID_BOORU_TAGS.has(t) || t === charName.toLowerCase())
         // Dedupe
         .filter((t, i, arr) => arr.indexOf(t) === i)
-        // Max 12 tags
-        .slice(0, 12);
+        // Max 15 tags
+        .slice(0, 15);
 
     return tags.join(', ');
 }
